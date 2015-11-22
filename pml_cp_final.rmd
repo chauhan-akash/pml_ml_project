@@ -1,0 +1,155 @@
+---
+title: "Final Course Project - Practical Machine Learning"
+author: "Akash Chauhan"
+date: "Sunday, November 22, 2015"
+output: html_document
+---
+
+This document is the final project submission for the Courera practical machine learning course. Throughout this document we will look into the project objective & backgrowun, data sources, analysis done and result summary.
+
+### 1. Bacground & Project objective
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, our goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+We have been provided two different datasets - training and testing (see data section for details).
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. We need to build the model on training dataset and predict the results for testing data sets.
+
+### 2. Data Sources
+
+The training data for this project are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+For simplicity purposes we will assume that you download the datasets on your own and save it in your working directory so that we can red it directly.
+
+### 3. Analysis details
+
+In this section we will report the analysis done on the datasets provided to answer the required objective questions. This will include the initial data exploration, data cleaning, model building and validation, testing the results and finally predicting the output using the final model.
+
+#### 3.1. Loading all the libraries
+
+Before we begin any analysis let us load all the relevant libraries needed for the analysis.
+
+```{r}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+```
+
+#### 3.2. Reproducability
+
+For the analysis to be reproducable we will fix the seed number to 123.
+
+```{r}
+set.seed(123)
+```
+
+#### 3.3. Getting the data
+
+Load the datasets saved in your working directory to your R session. Note that initial exploration of the file shows that the datasets have missing values with the following descriptions - NA, #DIV/0!, <blank>. we will take care of this while loading the data in R.
+
+```{r}
+test<- read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!",""))
+train<- read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!",""))
+```
+
+#### 3.4 Partioning the training data
+
+Let us divide the training dataset in to further two datasets - tr and te. this is done so that we validate our models and fine tune it.
+
+```{r}
+inTrain <- createDataPartition(y=train$classe, p=0.7, list=FALSE)
+tr <- train[inTrain, ]
+te <- train[-inTrain, ]
+dim(tr)
+dim(te)
+```
+
+#### 3.5 cleaning the datasets
+
+Before we do any analysis we will clean the datsets to remove any problems due to data abnormalities.
+
+Firstly let us remove all variables which have missing values - 
+
+```{r}
+tr <- tr[,colSums(is.na(tr)) == 0]
+te <- te[,colSums(is.na(te)) == 0]
+test <- test[,colSums(is.na(test)) == 0]
+```
+
+let's also remove some irrelevant variables which are not directly impacting the output variable classe -
+
+```{r}
+tr <- tr[,-c(1:7)]
+te <- te[,-c(1:7)]
+test <- test[,-c(1:7)]
+```
+
+#### 3.6. Building first model - decision tree
+
+Let's try to build the first classification model using rpart.
+
+```{r}
+m1 <- train(classe~., data=tr, method="rpart")
+fancyRpartPlot(m1$finalModel)
+```
+
+use this model to predict the testing dataset created and checking the accuracy using confusion matrix.
+
+```{r}
+p1<- predict(m1, newdata=te)
+confusionMatrix(p1, te$classe)
+```
+
+The accuracy is not that high (55.2%) for this model.Let us try another model using random forest for classification.
+
+#### 3.7. Building second model - random forest
+
+in this case we will build a model using randon forest method and test the accuracy.
+
+```{r}
+m2 <- randomForest(classe ~. , data=tr, method="class")
+```
+
+use this model to predict the testing dataset created and checking the accuracy using confusion matrix.
+
+```{r}
+p2<- predict(m2, newdata=te)
+confusionMatrix(p2, te$classe)
+```
+
+we see here that the random forest method has given a far better accuracy for this prediction (Accuracy : 0.9947,95% CI : (0.9925, 0.9964)).
+
+**The expected out of sample error is 0.0053 or 0.53%**
+
+Hence, we choose the final model as this one.
+
+### 4. Results Summary
+
+We will now apply this model to the testing dataset to predict the output.
+
+```{r}
+predictfinal <- predict(m2, test, type="class")
+predictfinal
+```
+
+We will use the code provided for the submission of this result to generate the files.
+
+```{r}
+# Write files for submission
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(predictfinal)
+```
